@@ -1,4 +1,3 @@
-cat <<'EOF' > /home/attacker/Desktop/Northuldra && chmod +x /home/attacker/Desktop/Northuldra
 #!/usr/bin/env bash
 set -euo pipefail
 
