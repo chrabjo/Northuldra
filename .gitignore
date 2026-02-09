@@ -1,0 +1,15 @@
+# Output directories
+pentestlab/
+output/
+reports/
+logs/
+
+# Result files
+*.log
+*.jsonl
+*.json
+*.xml
+
+# OS/editor
+.DS_Store
+Thumbs.db
