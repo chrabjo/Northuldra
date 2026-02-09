@@ -2,7 +2,8 @@
 
 Northuldra™ name and branding are not licensed for reuse without permission.
 
-Northuldra is a lab‑only pentest helper that orchestrates common recon and vulnerability scans.
+Northuldra is an experimental SOC lab toolkit focused on learning, automation, and realistic testing scenarios. This project is part of my ongoing work to explore how AI-assisted development can enhance cybersecurity training and hands-on learning.
+
 
 ## Safety
 Use only on systems you own or have explicit permission to test.
