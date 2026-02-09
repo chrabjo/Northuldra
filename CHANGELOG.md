@@ -11,3 +11,9 @@ All notable changes to this project will be documented in this file.
 
 ### Notes
 - Exploit presets are disabled in this build.
+
+## 0.2.0 - 2026-02-09
+- Add monthly rotation for web fingerprinting tools, web scan tools, and directory enumeration tools.
+- Add rotating wordlists for directory enumeration.
+- Display current month’s selected tool/wordlist in the interactive menu.
+- Add `self-update` command for git-clone installs.
