@@ -2,6 +2,9 @@
 
 Northuldra is a lab‑only pentest helper that orchestrates common recon and vulnerability scans.
 
+Northuldra™ name and branding are not licensed for reuse without permission.
+
+
 ## Safety
 Use only on systems you own or have explicit permission to test.
 
@@ -14,6 +17,3 @@ Use only on systems you own or have explicit permission to test.
 - Bash
 - Optional tools used by presets: nmap, whatweb, nikto, gobuster, sslscan, enum4linux, snmpwalk
 
-## Usage
-
-Interactive:
