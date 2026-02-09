@@ -8,10 +8,11 @@ set -euo pipefail
 # Misuse may violate laws and policies. You are responsible for lawful use.
 
 APP_NAME="Northuldra"
-VERSION="0.1.0"
+VERSION="0.2.0"
 DEFAULT_OUT_DIR="${HOME}/pentestlab"
 CONFIG_DIR="${HOME}/.northuldra"
 PRESETS_URL_FILE="${CONFIG_DIR}/presets_url.txt"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 mkdir -p "${CONFIG_DIR}"
 
@@ -28,6 +29,7 @@ Usage:
   ${APP_NAME} --targets CIDR         # interactive with default targets
   ${APP_NAME} run --targets CIDR --presets "1,3"
   ${APP_NAME} update                 # update preset references (if URL set)
+  ${APP_NAME} self-update            # update this script (git clone only)
 
 Options:
   --targets CIDR      Target range (e.g., 10.0.0.0/24)
@@ -39,6 +41,54 @@ USAGE
 }
 
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+# Monthly rotation (changes on the 1st of each month)
+MONTH_KEY="$(date +"%Y-%m")"
+hash_mod() {
+  local key="$1" mod="$2"
+  python3 - <<'PY' "$key" "$mod"
+import hashlib, sys
+key = sys.argv[1]
+mod = int(sys.argv[2])
+print(int(hashlib.sha256(key.encode()).hexdigest(), 16) % mod)
+PY
+}
+pick_from_pool() {
+  local label="$1"; shift
+  local -a pool=("$@")
+  if [[ ${#pool[@]} -eq 0 ]]; then
+    echo ""
+    return
+  fi
+  local idx
+  idx="$(hash_mod "${MONTH_KEY}:${label}" "${#pool[@]}")"
+  echo "${pool[$idx]}"
+}
+
+# Rotation pools (edit to fit your lab)
+WORDLIST_POOL=(
+  "/usr/share/wordlists/dirb/common.txt"
+  "/usr/share/wordlists/dirb/big.txt"
+  "/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt"
+  "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt"
+)
+WEB_FINGERPRINT_POOL=(
+  "whatweb"
+  "httpx"
+)
+WEB_SCAN_POOL=(
+  "nikto"
+  "nmap-vuln"
+)
+DIR_ENUM_POOL=(
+  "gobuster"
+  "feroxbuster"
+)
+
+ROT_WORDLIST="$(pick_from_pool "wordlist" "${WORDLIST_POOL[@]}")"
+ROT_WEB_FINGERPRINT_TOOL="$(pick_from_pool "webfp" "${WEB_FINGERPRINT_POOL[@]}")"
+ROT_WEB_SCAN_TOOL="$(pick_from_pool "webscan" "${WEB_SCAN_POOL[@]}")"
+ROT_DIR_ENUM_TOOL="$(pick_from_pool "direnum" "${DIR_ENUM_POOL[@]}")"
 
 json_escape() {
   python3 - <<'PY' "$1"
@@ -99,20 +149,51 @@ preset_2() {
 
 preset_3() {
   local t="$1" out_dir="$2" json="$3"
-  # Web tech fingerprinting
-  run_cmd "whatweb" "whatweb -a 1 ${t}" "$out_dir" "$json"
+  # Web tech fingerprinting (rotates monthly)
+  case "$ROT_WEB_FINGERPRINT_TOOL" in
+    whatweb)
+      run_cmd "whatweb" "whatweb -a 1 ${t}" "$out_dir" "$json"
+      ;;
+    httpx)
+      run_cmd "httpx" "httpx -silent -title -tech-detect -status-code -u http://${t}" "$out_dir" "$json"
+      ;;
+    *)
+      run_cmd "whatweb" "whatweb -a 1 ${t}" "$out_dir" "$json"
+      ;;
+  esac
 }
 
 preset_4() {
   local t="$1" out_dir="$2" json="$3"
-  # Web vuln scan (basic)
-  run_cmd "nikto" "nikto -h ${t}" "$out_dir" "$json"
+  # Web vuln scan (rotates monthly)
+  case "$ROT_WEB_SCAN_TOOL" in
+    nikto)
+      run_cmd "nikto" "nikto -h ${t}" "$out_dir" "$json"
+      ;;
+    nmap-vuln)
+      run_cmd "nmap" "nmap -sV --script vuln -T3 -oN ${out_dir}/nmap_vuln.txt ${t}" "$out_dir" "$json"
+      ;;
+    *)
+      run_cmd "nikto" "nikto -h ${t}" "$out_dir" "$json"
+      ;;
+  esac
 }
 
 preset_5() {
   local t="$1" out_dir="$2" json="$3"
-  # Directory brute-force (common wordlist)
-  run_cmd "gobuster" "gobuster dir -u http://${t} -w /usr/share/wordlists/dirb/common.txt -q" "$out_dir" "$json"
+  # Directory brute-force (rotating tool + wordlist)
+  local wl="${ROT_WORDLIST:-/usr/share/wordlists/dirb/common.txt}"
+  case "$ROT_DIR_ENUM_TOOL" in
+    gobuster)
+      run_cmd "gobuster" "gobuster dir -u http://${t} -w ${wl} -q" "$out_dir" "$json"
+      ;;
+    feroxbuster)
+      run_cmd "feroxbuster" "feroxbuster -u http://${t} -w ${wl} -q" "$out_dir" "$json"
+      ;;
+    *)
+      run_cmd "gobuster" "gobuster dir -u http://${t} -w ${wl} -q" "$out_dir" "$json"
+      ;;
+  esac
 }
 
 preset_6() {
@@ -168,9 +249,9 @@ menu() {
   echo "Northuldra Presets"
   echo "1) Nmap stealth scan"
   echo "2) Nmap vuln scripts (safe subset)"
-  echo "3) WhatWeb tech fingerprint"
-  echo "4) Nikto web scan"
-  echo "5) Gobuster directory scan"
+  echo "3) Web tech fingerprint (monthly: ${ROT_WEB_FINGERPRINT_TOOL})"
+  echo "4) Web vuln scan (monthly: ${ROT_WEB_SCAN_TOOL})"
+  echo "5) Directory scan (monthly: ${ROT_DIR_ENUM_TOOL}; wordlist: ${ROT_WORDLIST})"
   echo "6) SSLscan TLS check"
   echo "7) Enum4linux SMB enum"
   echo "8) SNMP walk (public)"
@@ -212,6 +293,20 @@ update_presets() {
   echo "[*] Updated presets saved to ${CONFIG_DIR}/presets.json"
 }
 
+self_update() {
+  echo "[*] Self-update (git clone only)"
+  if [[ ! -d "${SCRIPT_DIR}/.git" ]]; then
+    echo "[!] Not a git clone. Please re-download the latest script."
+    exit 1
+  fi
+  if ! has_cmd "git"; then
+    echo "[!] git not installed."
+    exit 1
+  fi
+  git -C "${SCRIPT_DIR}" pull --ff-only
+  echo "[*] Update complete."
+}
+
 main() {
   if [[ $# -eq 0 ]]; then
     menu
@@ -231,6 +326,7 @@ main() {
       --enable-exploits) enable_exploits="true"; shift ;;
       run) shift ;;
       update) update_presets; exit 0 ;;
+      self-update) self_update; exit 0 ;;
       -h|--help) usage; exit 0 ;;
       *) echo "[!] Unknown argument: $1"; usage; exit 1 ;;
     esac
