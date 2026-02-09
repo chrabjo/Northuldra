@@ -1,9 +1,8 @@
 # Northuldra
 
-Northuldra is a lab‑only pentest helper that orchestrates common recon and vulnerability scans.
-
 Northuldra™ name and branding are not licensed for reuse without permission.
 
+Northuldra is a lab‑only pentest helper that orchestrates common recon and vulnerability scans.
 
 ## Safety
 Use only on systems you own or have explicit permission to test.
